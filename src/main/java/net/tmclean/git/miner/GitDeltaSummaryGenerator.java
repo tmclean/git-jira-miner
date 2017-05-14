@@ -15,26 +15,18 @@ import net.tmclean.git.miner.walker.GitRepoWalker;
 public class GitDeltaSummaryGenerator 
 {
 	private final Repository repo;
+	private final String mavenModulePath;
+	private final List<String> ignoreFiles;
 	
-	public GitDeltaSummaryGenerator( Repository repo )
+	public GitDeltaSummaryGenerator( Repository repo, String mavenModulePath, List<String> ignoreFiles )
 	{
 		this.repo = repo;
+		this.mavenModulePath = mavenModulePath;
+		this.ignoreFiles = ignoreFiles;
 	}
 	
 	public GitDeltaSummary generate( String start, String end, String regex ) throws IOException
 	{
-    	Pattern pattern = Pattern.compile( regex );
-    	
-    	GitMetadataGrepWalkListener grepListener = new GitMetadataGrepWalkListener( pattern );
-    	GitRepoWalker walker = new GitRepoWalker( repo );
-    	walker.walk( start, end, grepListener );
-    	
-    	GitEntityAffectedPathsResolver affectedFilesResolver = new GitEntityAffectedPathsResolver();
-    	
-    	Map<String, GitMatchedEntity> matchedEntities = grepListener.getMatches();
-    	
-		List<String> affectedPaths = affectedFilesResolver.resolve( repo, start, end );
-		
 		Ref startRef = repo.findRef( start );
 		String startId = startRef.getLeaf().getObjectId().name();
 		
@@ -44,8 +36,23 @@ public class GitDeltaSummaryGenerator
 		GitDeltaSummary summary = new GitDeltaSummary();
 		summary.setStart( new GrepRef( startRef.getName(), startId ) );
 		summary.setEnd( new GrepRef( endRef.getName(), endId ) );
-		summary.setMatchedEntities( matchedEntities );
+
+    	GitEntityAffectedPathsResolver affectedFilesResolver = new GitEntityAffectedPathsResolver();
+		List<String> affectedPaths = affectedFilesResolver.resolve( repo, mavenModulePath, ignoreFiles, start, end );
 		summary.setAffectedPaths( affectedPaths );
+		
+		// Only hunt for grep for matches if the revs contain files in the current module
+		if( !affectedPaths.isEmpty() )
+		{
+			Pattern pattern = Pattern.compile( regex );
+	    	
+	    	GitMetadataGrepWalkListener grepListener = new GitMetadataGrepWalkListener( pattern );
+	    	GitRepoWalker walker = new GitRepoWalker( repo );
+	    	walker.walk( start, end, grepListener );
+	    	    	
+	    	Map<String, GitMatchedEntity> matchedEntities = grepListener.getMatches();
+			summary.setMatchedEntities( matchedEntities );
+		}
 		
 		return summary;
 	}

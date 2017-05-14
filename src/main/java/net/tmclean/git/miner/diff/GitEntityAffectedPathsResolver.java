@@ -16,7 +16,7 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 
 public class GitEntityAffectedPathsResolver 
 {
-	public List<String> resolve( Repository repo, String startRefName, String endRefName ) throws IOException
+	public List<String> resolve( Repository repo, String mavenModulePath, List<String> ignoreFiles, String startRefName, String endRefName ) throws IOException
 	{
 		List<String> paths = new ArrayList<>();
 		
@@ -42,12 +42,17 @@ public class GitEntityAffectedPathsResolver
 	    			
 	    			for( DiffEntry diff : diffs )
 	    			{
-	    			    if( !paths.contains( diff.getOldPath() ) )
+	    				if( shouldIgnore( diff, ignoreFiles ) )
+	    				{
+	    					continue;
+	    				}
+	    				
+	    			    if( diff.getOldPath().startsWith( mavenModulePath ) && !paths.contains( diff.getOldPath() ) )
 	    			    {
 	    			    	paths.add( diff.getOldPath() );
 	    			    }
 	    			    
-	    			    if( !paths.contains( diff.getNewPath() ) )
+	    			    if(  diff.getNewPath().startsWith( mavenModulePath ) && !paths.contains( diff.getNewPath() ) )
 	    			    {
 	    			    	paths.add( diff.getNewPath() );
 	    			    }
@@ -68,6 +73,19 @@ public class GitEntityAffectedPathsResolver
     	return paths;
 	}
 
+	private boolean shouldIgnore( DiffEntry diff, List<String> ignoreFiles )
+	{
+		for( String ignore : ignoreFiles )
+		{
+			if( diff.getOldPath().endsWith( ignore ) || diff.getNewPath().endsWith( ignore ) )
+			{
+				return true;
+			}
+		}
+		
+		return false;
+	}
+	
 	private ObjectId resolveFromRef( Repository repo, String refStr ) throws IOException
 	{
 		if( refStr == null || "".equals( refStr.trim() ) )
